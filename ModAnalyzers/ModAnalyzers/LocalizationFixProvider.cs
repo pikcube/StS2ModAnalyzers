@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 
 namespace ModAnalyzers;
@@ -50,45 +51,27 @@ public class LocalizationFixProvider : CodeFixProvider
         if (root == null) return;
         
         var diagnosticSpan = context.Diagnostics.First().Location.SourceSpan;
-        var classDeclaration = root.FindToken(diagnosticSpan.Start).Parent;
-        if (classDeclaration == null) return;
+        var declaration = root.FindToken(diagnosticSpan.Start).Parent;
+        while (declaration != null && declaration.Kind() is not SyntaxKind.ClassDeclaration)
+        {
+            declaration = declaration.Parent;
+        }
+        if (declaration == null) return;
         
         context.RegisterCodeFix(
             CodeAction.Create(
                 title: string.Format(Resources.STS001CodeFixTitle, locFiles),
-                createChangedDocument: c => GeneratingMissingKeyComment(context.Document, classDeclaration, missingKeys, c),
+                createChangedDocument: c => GeneratingMissingKeyComment(context.Document, declaration, missingKeys, c),
                 equivalenceKey: nameof(Resources.STS001CodeFixTitle)
             ),
             context.Diagnostics
         );
-
-        /*
-        // 'SourceSpan' of 'Location' is the highlighted area. We're going to use this area to find the 'SyntaxNode' to rename.
-        var diagnosticSpan = diagnostic.Location.SourceSpan;
-
-        // Get the root of Syntax Tree that contains the highlighted diagnostic.
-        var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-
-        // Find SyntaxNode corresponding to the diagnostic.
-        var diagnosticNode = root?.FindNode(diagnosticSpan);
-
-        // To get the required metadata, we should match the Node to the specific type: 'ClassDeclarationSyntax'.
-        if (diagnosticNode is not ClassDeclarationSyntax declaration)
-            return;
-
-        // Register a code action that will invoke the fix.
-        context.RegisterCodeFix(
-            CodeAction.Create(
-                title: string.Format(Resources.STS001CodeFixTitle, "asdf", CommonName),
-                createChangedSolution: c => SanitizeCompanyNameAsync(context.Document, declaration, c),
-                equivalenceKey: nameof(Resources.STS001CodeFixTitle)),
-            diagnostic);*/
     }
 
-    private async Task<Document> GeneratingMissingKeyComment(Document document, SyntaxNode classDef, Dictionary<string, string?> missingKeys,
+    private async Task<Document> GeneratingMissingKeyComment(Document document, SyntaxNode declaration, Dictionary<string, string?> missingKeys,
         CancellationToken cancellationToken)
     {
-        StringBuilder commentBuilder = new();
+        StringBuilder commentBuilder = new();//"/*\n");
         
         var first = true;
         foreach (var entry in missingKeys.ToImmutableSortedDictionary())
@@ -97,12 +80,12 @@ public class LocalizationFixProvider : CodeFixProvider
             else commentBuilder.AppendLine(",");
             commentBuilder.Append($"  \"{entry.Key}\": \"{entry.Value}\"");
         }
-        commentBuilder.AppendLine();
+        commentBuilder.AppendLine();//.AppendLine("*/");
 
         var editor = await DocumentEditor.CreateAsync(document, cancellationToken);
         var comment = SyntaxFactory.Comment(commentBuilder.ToString());
         
-        editor.ReplaceNode(classDef, (node, generator) =>
+        editor.ReplaceNode(declaration, (node, generator) =>
         {
             if (node.HasLeadingTrivia)
             {

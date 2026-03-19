@@ -25,65 +25,77 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     
 
     //Required localization data
-    private static readonly Dictionary<string, RequiredLocalization[]> LocData = new()
+    private static readonly Dictionary<string, RequiredLocalization[]> NamedTypeLocData = new()
     {
         {
             "MegaCrit.Sts2.Core.Models.CardModel", //modeltype
             [new RequiredLocalization("cards") //file
-                .Add("CLASSID.title", "CLASSNAME")  //required entries
-                .Add("CLASSID.description")
+                .Add("SYMBOLID.title", "SYMBOLNAME")  //required entries
+                .Add("SYMBOLID.description")
             ]
         },
         {
             "MegaCrit.Sts2.Core.Models.CharacterModel",
             [new RequiredLocalization("characters")
-                .Add("CLASSID.title", "The CLASSNAME")
-                .Add("CLASSID.titleObject", "The CLASSNAME")
-                .Add("CLASSID.description", "Character Selection\\nScreen Description")
-                .Add("CLASSID.pronounObject", "him/her/it")
-                .Add("CLASSID.possessiveAdjective", "his/her/its")
-                .Add("CLASSID.pronounPossessive", "his/hers/its")
-                .Add("CLASSID.pronounSubject", "he/she/it")
-                .Add("CLASSID.goldMonologue", "Line spoken when obtaining a large amount of gold")
-                .Add("CLASSID.eventDeathPrevention", "Co-op survival line")
-                .Add("CLASSID.aromaPrinciple", "Lore")
-                .Add("CLASSID.cardsModifierTitle", "__ Cards")
-                .Add("CLASSID.cardsModifierDescription", "__ cards will now appear in rewards and shops.")
-                .Add("CLASSID.banter.alive.endTurnPing", "Co-op hurry up end turn ping message")
-                .Add("CLASSID.banter.dead.endTurnPing", "..."),
+                .Add("SYMBOLID.title", "The SYMBOLNAME")
+                .Add("SYMBOLID.titleObject", "The SYMBOLNAME")
+                .Add("SYMBOLID.description", "Character Selection\\nScreen Description")
+                .Add("SYMBOLID.pronounObject", "him/her/it")
+                .Add("SYMBOLID.possessiveAdjective", "his/her/its")
+                .Add("SYMBOLID.pronounPossessive", "his/hers/its")
+                .Add("SYMBOLID.pronounSubject", "he/she/it")
+                .Add("SYMBOLID.goldMonologue", "Line spoken when obtaining a large amount of gold")
+                .Add("SYMBOLID.eventDeathPrevention", "Co-op survival line")
+                .Add("SYMBOLID.aromaPrinciple", "Lore")
+                .Add("SYMBOLID.cardsModifierTitle", "__ Cards")
+                .Add("SYMBOLID.cardsModifierDescription", "__ cards will now appear in rewards and shops.")
+                .Add("SYMBOLID.banter.alive.endTurnPing", "Co-op hurry up end turn ping message")
+                .Add("SYMBOLID.banter.dead.endTurnPing", "..."),
             new RequiredLocalization("ancients")
-                .Add("THE_ARCHITECT.talk.CLASSID.0-0r.char", "I am angry at the architect")
-                .Add("THE_ARCHITECT.talk.CLASSID.0-0r.next", "Continue")
-                .Add("THE_ARCHITECT.talk.CLASSID.0-1r.ancient", "You die")
-                .Add("THE_ARCHITECT.talk.CLASSID.0-attack", "BOTH")]
+                .Add("THE_ARCHITECT.talk.SYMBOLID.0-0r.char", "I am angry at the architect")
+                .Add("THE_ARCHITECT.talk.SYMBOLID.0-0r.next", "Continue")
+                .Add("THE_ARCHITECT.talk.SYMBOLID.0-1r.ancient", "You die")
+                .Add("THE_ARCHITECT.talk.SYMBOLID.0-attack", "Both")]
         },
         {
             "MegaCrit.Sts2.Core.Models.PotionModel",
             [new RequiredLocalization("potions")
-                .Add("CLASSID.title", "CLASSNAME")
-                .Add("CLASSID.description")]
+                .Add("SYMBOLID.title", "SYMBOLNAME")
+                .Add("SYMBOLID.description")]
         },
         {
             "MegaCrit.Sts2.Core.Models.PowerModel",
             [new RequiredLocalization("powers")
-                .Add("CLASSID.title", "CLASSNAME")
-                .Add("CLASSID.description")
-                .Add("CLASSID.smartDescription")]
+                .Add("SYMBOLID.title", "SYMBOLNAME")
+                .Add("SYMBOLID.description")
+                .Add("SYMBOLID.smartDescription")]
         },
         {
             "MegaCrit.Sts2.Core.Models.RelicModel",
             [new RequiredLocalization("relics")
-                .Add("CLASSID.title", "CLASSNAME")
-                .Add("CLASSID.description")
-                .Add("CLASSID.flavor")]
+                .Add("SYMBOLID.title", "SYMBOLNAME")
+                .Add("SYMBOLID.description")
+                .Add("SYMBOLID.flavor")]
         },
         {
             "MegaCrit.Sts2.Core.Models.AncientEventModel",
             [new RequiredLocalization("ancients")
-                .Add("CLASSID.title", "CLASSNAME")
-                .Add("CLASSID.epithet")
-                .Add("CLASSID.talk.firstVisitEver.0-0.ancient", "First time greeting.")
-                .Add("CLASSID.talk.ANY.0-0r.ancient", "Reusable generic greeting.")]
+                .Add("SYMBOLID.title", "SYMBOLNAME")
+                .Add("SYMBOLID.epithet")
+                .Add("SYMBOLID.talk.firstVisitEver.0-0.ancient", "First time greeting.")
+                .Add("SYMBOLID.talk.ANY.0-0r.ancient", "Reusable generic greeting.")]
+        }
+    };
+
+    private static readonly Dictionary<string, RequiredLocalization[]> EnumLocData = new()
+    {
+        {
+            "CardKeyword", //enum type name
+            [
+                new RequiredLocalization("card_keywords") //file
+                    .Add("SYMBOLID.title", "NAME") //required entries
+                    .Add("SYMBOLID.description", "Tooltip")
+            ]
         }
     };
 
@@ -95,9 +107,9 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         {
             "MegaCrit.Sts2.Core.Models.PowerModel",
             [
-                new("Title", "CLASSID.title"),
-                new("Description", "CLASSID.description"),
-                new("SmartDescriptionLocKey", "CLASSID.smartDescription")
+                new("Title", "SYMBOLID.title"),
+                new("Description", "SYMBOLID.description"),
+                new("SmartDescriptionLocKey", "SYMBOLID.smartDescription")
             ]
         }
     };
@@ -193,6 +205,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         }
         
         context.RegisterSymbolAction(CheckSymbol, SymbolKind.NamedType);
+        context.RegisterSymbolAction(CheckField, SymbolKind.Field);
         context.RegisterCompilationEndAction(endContext =>
         {
             if (receivedJson) return;
@@ -203,13 +216,13 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private void CheckSymbol(SymbolAnalysisContext context)
     {
+        if (_currentLocKeys == null) return;
         if (context.Symbol is not INamedTypeSymbol namedTypeSymbol) return;
         if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic) return;
-        if (_currentLocKeys == null) return;
         
         Dictionary<string, string> missingKeys = [];
         
-        foreach (var entry in LocData)
+        foreach (var entry in NamedTypeLocData)
         {
             if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(entry.Key)) continue;
             var isCustomModel = namedTypeSymbol.ImplementsInterfaceOrBaseClass(CustomModelInterface);
@@ -277,11 +290,86 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    private void CheckField(SymbolAnalysisContext context)
+    {
+        if (_currentLocKeys == null) return;
+        if (context.Symbol is not IFieldSymbol fieldSymbol) return;
+        if (!fieldSymbol.IsStatic || fieldSymbol.IsReadOnly) return;
+        
+        var attributes = fieldSymbol.GetAttributes();
+        AttributeData? enumAttr = null;
+        AttributeData? keywordProperties = null;
+        foreach (var attr in attributes)
+        {
+            if ("CustomEnumAttribute".Equals(attr.AttributeClass?.Name))
+            {
+                enumAttr = attr;
+            }
+            else if ("KeywordPropertiesAttribute".Equals(attr.AttributeClass?.Name))
+            {
+                keywordProperties = attr;
+            }
+        }
+
+        if (enumAttr != null)
+        {
+            var name = fieldSymbol.Name;
+            var containingType = fieldSymbol.ContainingType;
+            
+            if (containingType == null) return;
+            
+            Dictionary<string, string> missingKeys = [];
+            
+            foreach (var entry in EnumLocData)
+            {
+                if (!fieldSymbol.Type.Name.Contains(entry.Key)) continue;
+                
+                if (enumAttr.ConstructorArguments.Length > 0)
+                {
+                    var nameArg = enumAttr.ConstructorArguments[0].Value;
+                    if (nameArg != null) name = nameArg.ToString();
+                }
+                var prefix = containingType.FullName().GetPrefix();
+                var id = prefix + name.Slugify();
+        
+                foreach (var requiredLoc in entry.Value)
+                {
+                    missingKeys.Clear();
+            
+                    foreach (var locEntry in requiredLoc.RequiredKeys)
+                    {
+                        var key = ReplaceSpecial(locEntry.Key, id, prefix, name);
+                        if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}")) continue;
+
+                        var result = ReplaceSpecial(locEntry.Value, id, prefix, name);
+                        missingKeys.Add(key, result);
+                    }
+
+                    if (missingKeys.Count == 0) continue;
+
+                    var builder = ImmutableDictionary.CreateBuilder<string, string?>();
+                    //For future, list all necessary languages. eg "eng/cards.json, zhs/cards.json"
+                    builder.Add("LOCFILES", requiredLoc.Filename + ".json");
+                    foreach (var missingKey in missingKeys)
+                    {
+                        builder.Add(missingKey.Key, missingKey.Value);
+                    }
+            
+                    var diagnostic = Diagnostic.Create(Rule,
+                        fieldSymbol.Locations[0],
+                        builder.ToImmutable(),
+                        JoinKeys(missingKeys), name);
+                    context.ReportDiagnostic(diagnostic);
+                }
+            }
+        }
+    }
+
     private static string ReplaceSpecial(string orig, string id, string prefix, string name)
     {
-        string result = orig.Replace("CLASSID", id);
-        result = result.Replace("PREFIX", id);
-        result = result.Replace("CLASSNAME", name);
+        string result = orig.Replace("SYMBOLID", id);
+        result = result.Replace("PREFIX", prefix);
+        result = result.Replace("SYMBOLNAME", name);
         return result;
     }
 

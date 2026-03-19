@@ -1,4 +1,6 @@
 {
   "WRONG_TYPE_CARD.title": "WrongTypeCard",
-  "WRONG_TYPE_CARD.description": ""
+  "WRONG_TYPE_CARD.description": "",
+  "MODANALYZERS-INHERITED_POOL.description": "",
+  "MODANALYZERS-INHERITED_POOL.title": "InheritedPool"
 }

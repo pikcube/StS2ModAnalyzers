@@ -26,4 +26,8 @@
             <Private>false</Private>
         </Reference>
     </ItemGroup>
+    
+    <ItemGroup>
+      <PackageReference Include="Alchyr.Sts2.BaseLib" Version="0.1.6" />
+    </ItemGroup>
 </Project>

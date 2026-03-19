@@ -15,10 +15,10 @@
         <IsPackable>true</IsPackable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>Alchyr.Sts2.ModAnalyzers</PackageId>
-        <PackageVersion>0.1.4</PackageVersion>
+        <PackageVersion>0.1.5</PackageVersion>
         <Authors>Alchyr</Authors>
         <Description>Analyzers to help with the creation of Slay the Spire 2 mods.</Description>
-        <PackageReleaseNotes>fix ignore keys</PackageReleaseNotes>
+        <PackageReleaseNotes>CustomEnum Keyword localization, CustomModel pool requirement</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         
         <RepositoryUrl>https://github.com/Alchyr/StS2ModAnalyzers/tree/master/ModAnalyzers/ModAnalyzers</RepositoryUrl>
@@ -44,12 +44,12 @@
     </ItemGroup>
     
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
     </ItemGroup>
 
     <ItemGroup>
