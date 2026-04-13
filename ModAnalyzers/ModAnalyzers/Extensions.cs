@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace ModAnalyzers;
 
@@ -14,6 +17,11 @@ internal static class Extensions
         string fullName = symbol.ContainingNamespace?.ToDisplayString(format) ?? string.Empty;
         if (fullName.Length > 0) fullName += ".";
         return fullName + symbol.Name;
+    }
+    
+    public static bool ImplementsInterface(this INamedTypeSymbol typeSymbol, INamedTypeSymbol? interfaceSymbol)
+    {
+        return interfaceSymbol != null && typeSymbol.AllInterfaces.Contains(interfaceSymbol);
     }
     
     public static bool ImplementsInterfaceOrBaseClass(this INamedTypeSymbol typeSymbol, Type typeToCheck)
@@ -64,6 +72,54 @@ internal static class Extensions
         
         var baseType = typeSymbol.BaseType;
         return baseType != null && baseType.OverridesMethodOrProperty(baseTypeName, baseName);
+    }
+
+    public static string? AttributeArgumentString(this AttributeData attr, int argIndex)
+    {
+        var args = attr.ConstructorArguments;
+        return argIndex >= args.Length ? null : args[argIndex].Value?.ToString();
+    }
+
+    public static SyntaxNode? FindPropertyGetter(this SyntaxNode propertySyntax, SymbolAnalysisContext context)
+    {
+        //First check for accessor list setup with getter
+        SyntaxNode? propertyGetter = propertySyntax.FindChild<AccessorListSyntax>();
+        propertyGetter = propertyGetter?.FindChild<AccessorDeclarationSyntax>(syntax => syntax.IsKind(SyntaxKind.GetAccessorDeclaration));
+        
+        //Find arrow expression as child of getter or as direct child
+        SyntaxNode? valueDefinition = (propertyGetter ?? propertySyntax).FindChild<ArrowExpressionClauseSyntax>(syntax =>
+            syntax.ArrowToken.IsKind(SyntaxKind.EqualsGreaterThanToken));
+
+        if (valueDefinition == null)
+        {
+            //No arrow expression, check for block syntax
+            if (propertyGetter == null) return null;
+
+            valueDefinition = propertyGetter.FindChild<BlockSyntax>()?.FindChild<ReturnStatementSyntax>();
+        }
+
+
+        return valueDefinition;
+    }
+
+    public static string CreationTypeName(this ExpressionSyntax expression)
+    {
+        if (!expression.IsKind(SyntaxKind.ObjectCreationExpression)) return "WRONG EXPRESSION KIND";
+
+        var nameSyntax = expression.FindChild<QualifiedNameSyntax>() ?? expression;
+        nameSyntax = nameSyntax.FindChild<IdentifierNameSyntax>();
+
+        return nameSyntax is not IdentifierNameSyntax name ? "" : name.GetFirstToken().ValueText;
+    }
+
+    public static T? FindChild<T>(this SyntaxNode syntax, Predicate<T>? condition = null) where T : SyntaxNode
+    {
+        foreach (var child in syntax.ChildNodes())
+        {
+            if (child is T correctChild && condition?.Invoke(correctChild) != false) return correctChild;
+        }
+
+        return null;
     }
 
     private static readonly Regex CamelCaseRegex =

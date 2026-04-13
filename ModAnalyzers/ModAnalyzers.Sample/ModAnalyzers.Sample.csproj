@@ -28,6 +28,6 @@
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="Alchyr.Sts2.BaseLib" Version="0.1.6" />
+      <PackageReference Include="Alchyr.Sts2.BaseLib" Version="0.2.2" />
     </ItemGroup>
 </Project>

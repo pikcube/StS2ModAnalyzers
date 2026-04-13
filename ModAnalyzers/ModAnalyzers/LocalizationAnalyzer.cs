@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using ModAnalyzers.Json;
 
@@ -22,6 +25,8 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private const string BaseLibAbstracts = "BaseLib.Abstracts.Custom";
     private const string CustomModelInterface = "BaseLib.Abstracts.ICustomModel";
+    private const string ModelLocInterface = "BaseLib.Abstracts.ILocalizationProvider";
+    private const string CustomIdAttribute = "BaseLib.Utils.Attributes.CustomIDAttribute";
     
 
     //Required localization data
@@ -99,6 +104,21 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         }
     };
 
+    private static readonly Dictionary<string, string[]> CodeLocalizationData = new()
+    {
+        { "ActLoc", [ "title" ] },
+        { "CardModifierLoc", [ "title", "description" ] },
+        { "CardLoc", [ "title", "description" ] },
+        { "CharacterLoc", [] },
+        { "EncounterLoc", [ "title", "loss" ] },
+        { "ModifierLoc", [ "title", "description" ] },
+        { "MonsterLoc", [ "name" ] },
+        { "OrbLoc", [ "title", "description", "smartDescription" ] },
+        { "PotionLoc", [ "title", "description" ] },
+        { "PowerLoc", [ "title", "description", "smartDescription" ] },
+        { "RelicLoc", [ "title", "description", "flavor" ] }
+    };
+
     /// <summary>
     /// Method overrides that disable entries for specific models.
     /// </summary>
@@ -160,7 +180,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning, isEnabledByDefault: true, description: CustomModelDescription);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Rule, NoLoc, CustomModelRule);
+        ImmutableArray.Create(Rule, NoLoc, CustomModelRule, LoggingDiagnostic.Fake);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -203,8 +223,17 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             }
             catch (Exception) { }
         }
+
+        var customModelInterface = 
+            context.Compilation.GetTypeByMetadataName(CustomModelInterface);
+        var customLocInterface = 
+            context.Compilation.GetTypeByMetadataName(ModelLocInterface);
+        var idAttribute =
+            context.Compilation.GetTypeByMetadataName(CustomIdAttribute);
         
-        context.RegisterSymbolAction(CheckSymbol, SymbolKind.NamedType);
+        context.RegisterSymbolAction(
+            context => CheckSymbol(context, customModelInterface, customLocInterface, idAttribute), 
+            SymbolKind.NamedType);
         context.RegisterSymbolAction(CheckField, SymbolKind.Field);
         context.RegisterCompilationEndAction(endContext =>
         {
@@ -214,7 +243,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    private void CheckSymbol(SymbolAnalysisContext context)
+    private void CheckSymbol(SymbolAnalysisContext context, INamedTypeSymbol? customModel, INamedTypeSymbol? locProvider, INamedTypeSymbol? idAttribute)
     {
         if (_currentLocKeys == null) return;
         if (context.Symbol is not INamedTypeSymbol namedTypeSymbol) return;
@@ -225,8 +254,9 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         foreach (var entry in NamedTypeLocData)
         {
             if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(entry.Key)) continue;
-            var isCustomModel = namedTypeSymbol.ImplementsInterfaceOrBaseClass(CustomModelInterface);
+            var isCustomModel = namedTypeSymbol.ImplementsInterface(customModel);
             
+            //Check for localization provided through alternative means
             List<string> ignoreKeys = [];
             if (OverrideIgnores.TryGetValue(entry.Key, out var overrideIgnores))
             {
@@ -237,6 +267,14 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                         ignoreKeys.Add(overrideIgnore.Value);
                     }
                 }
+            }
+
+            ISet<string>? ignoreOnce = null; //Only ignored in first required loc;
+                                          //secondary required loc is in a different file and so is not ignored.
+            if (namedTypeSymbol.ImplementsInterface(locProvider))
+            {
+                ignoreOnce = FindAndGetLocalizationDeclaration(namedTypeSymbol, "SYMBOLID", context);
+                context.Log("ProvidedLoc: " + (ignoreOnce == null ? "null" : string.Join(",", ignoreOnce)), namedTypeSymbol.Locations[0]);
             }
             
             if (!isCustomModel)
@@ -249,11 +287,13 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                     customModelName);
                 context.ReportDiagnostic(modelTypeDiagnostic);
             }
+
+            var customIdAttribute = namedTypeSymbol.GetAttributes()
+                .FirstOrDefault(attr => SymbolEqualityComparer.Default.Equals(idAttribute, attr.AttributeClass));
             
             var fullName = namedTypeSymbol.FullName();
-            var id = namedTypeSymbol.Name.Slugify();
             var prefix = fullName.GetPrefix();
-            if (isCustomModel) id = prefix + id;
+            var id = customIdAttribute?.AttributeArgumentString(0) ?? (isCustomModel ? prefix : "") + namedTypeSymbol.Name.Slugify();
             
             foreach (var requiredLoc in entry.Value)
             {
@@ -262,13 +302,16 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                 foreach (var locEntry in requiredLoc.RequiredKeys)
                 {
                     if (ignoreKeys.Contains(locEntry.Key)) continue;
+                    if (ignoreOnce != null && (ignoreOnce.Count == 0 || ignoreOnce.Contains(locEntry.Key))) continue;
                     
-                    var key = ReplaceSpecial(locEntry.Key, id, prefix, namedTypeSymbol.Name);
+                    var key = ReplaceSpecial(locEntry.Key, id, namedTypeSymbol.Name);
                     if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}")) continue;
 
-                    var result = ReplaceSpecial(locEntry.Value, id, prefix, namedTypeSymbol.Name);
+                    var result = ReplaceSpecial(locEntry.Value, id, namedTypeSymbol.Name);
                     missingKeys.Add(key, result);
                 }
+
+                ignoreOnce = null;
 
                 if (missingKeys.Count == 0) continue;
 
@@ -288,6 +331,87 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             }
             return;
         }
+    }
+
+    private ISet<string>? FindAndGetLocalizationDeclaration(INamedTypeSymbol? symbol, string symbolId, SymbolAnalysisContext context)
+    {
+        while (symbol != null)
+        {
+            foreach (var member in symbol.GetMembers())
+            {
+                if (member is not IPropertySymbol || !member.IsOverride ||
+                    !member.Name.Equals("Localization")) continue;
+                
+                var syntaxReferences = member.DeclaringSyntaxReferences;
+                if (syntaxReferences.Length == 0) return null;
+
+                var syntax = syntaxReferences[0].GetSyntax();
+                syntax = syntax.FindPropertyGetter(context);
+                if (syntax == null) return null;
+
+                return GetLocalizationKeys(syntax, symbolId, context);
+            }
+
+            symbol = symbol.BaseType;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns localization keys defined by a syntax node specifically for a property
+    /// of type List(string, string). Returns an empty list if it could not be analyzed.
+    /// </summary>
+    /// <param name="syntax"></param>
+    /// <param name="symbolId"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    private ISet<string>? GetLocalizationKeys(SyntaxNode syntax, string symbolId, SymbolAnalysisContext context)
+    {
+        var nullReturn =
+            syntax.FindChild<LiteralExpressionSyntax>(test => test.IsKind(SyntaxKind.NullLiteralExpression));
+        if (nullReturn != null) return null;
+
+        SyntaxNode? objectCreation = syntax.FindChild<ObjectCreationExpressionSyntax>();
+
+        IEnumerable<SyntaxNode> collectionItems;
+        if (objectCreation is ObjectCreationExpressionSyntax objectCreationSyntax)
+        {
+            var typeName = objectCreationSyntax.CreationTypeName();
+            context.Log(typeName, syntax.GetLocation());
+            //Special localization types provided by BaseLib
+            if (CodeLocalizationData.TryGetValue(typeName, out var locNames))
+            {
+                return locNames.Select(name => $"{symbolId}.{name}").ToImmutableHashSet();
+            }
+            
+            //Check for collection initializer
+            objectCreation = objectCreation.FindChild<ExpressionSyntax>(test => 
+                    test.IsKind(SyntaxKind.CollectionInitializerExpression));
+            collectionItems = objectCreation?.ChildNodes()
+                .OfType<TupleExpressionSyntax>() ?? [];
+        }
+        else
+        {
+            var collectionExpression = syntax.FindChild<CollectionExpressionSyntax>();
+            if (collectionExpression == null) return ImmutableHashSet<string>.Empty;
+
+            collectionItems = collectionExpression.ChildNodes().OfType<CollectionElementSyntax>()
+                .Select(element => element.FindChild<TupleExpressionSyntax>()).OfType<TupleExpressionSyntax>();
+        }
+
+        HashSet<string> results = [];
+        foreach (var item in collectionItems)
+        {
+            var firstValue = item.FindChild<ArgumentSyntax>()
+                ?.FindChild<LiteralExpressionSyntax>(test => test.IsKind(SyntaxKind.StringLiteralExpression));
+            if (firstValue == null)
+                return ImmutableHashSet<string>.Empty;
+
+            results.Add($"{symbolId}.{firstValue.Token.ValueText}");
+        }
+        
+        return results; 
     }
 
     private void CheckField(SymbolAnalysisContext context)
@@ -330,7 +454,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                     if (nameArg != null) name = nameArg.ToString();
                 }
                 var prefix = containingType.FullName().GetPrefix();
-                var id = prefix + name.Slugify();
+                var id = prefix + name.ToUpperInvariant();
         
                 foreach (var requiredLoc in entry.Value)
                 {
@@ -338,10 +462,10 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             
                     foreach (var locEntry in requiredLoc.RequiredKeys)
                     {
-                        var key = ReplaceSpecial(locEntry.Key, id, prefix, name);
+                        var key = ReplaceSpecial(locEntry.Key, id, name);
                         if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}")) continue;
 
-                        var result = ReplaceSpecial(locEntry.Value, id, prefix, name);
+                        var result = ReplaceSpecial(locEntry.Value, id, name);
                         missingKeys.Add(key, result);
                     }
 
@@ -365,10 +489,9 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static string ReplaceSpecial(string orig, string id, string prefix, string name)
+    private static string ReplaceSpecial(string orig, string id, string name)
     {
         string result = orig.Replace("SYMBOLID", id);
-        result = result.Replace("PREFIX", prefix);
         result = result.Replace("SYMBOLNAME", name);
         return result;
     }
