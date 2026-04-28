@@ -89,6 +89,12 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                 .Add("SYMBOLID.epithet")
                 .Add("SYMBOLID.talk.firstVisitEver.0-0.ancient", "First time greeting.")
                 .Add("SYMBOLID.talk.ANY.0-0r.ancient", "Reusable generic greeting.")]
+        },
+        {
+            "MegaCrit.Sts2.Core.Models.ActModel",
+            [new RequiredLocalization("acts")
+                .Add("SYMBOLID.title", "SYMBOLNAME")
+            ]
         }
     };
 
