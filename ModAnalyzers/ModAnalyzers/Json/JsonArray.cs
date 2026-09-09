@@ -18,7 +18,9 @@ namespace ModAnalyzers.Json
         public JsonArray(IEnumerable<JsonValue> items)
         {
             if (items == null)
+            {
                 throw new ArgumentNullException("items");
+            }
 
             list = new List<JsonValue>(items);
         }
@@ -47,7 +49,9 @@ namespace ModAnalyzers.Json
         public void Add(JsonValue item)
         {
             if (item == null)
+            {
                 throw new ArgumentNullException("item");
+            }
 
             list.Add(item);
         }
@@ -55,7 +59,9 @@ namespace ModAnalyzers.Json
         public void AddRange(IEnumerable<JsonValue> items)
         {
             if (items == null)
+            {
                 throw new ArgumentNullException("items");
+            }
 
             list.AddRange(items);
         }
@@ -63,7 +69,9 @@ namespace ModAnalyzers.Json
         public void AddRange(params JsonValue[] items)
         {
             if (items == null)
+            {
                 return;
+            }
 
             list.AddRange(items);
         }
@@ -106,13 +114,18 @@ namespace ModAnalyzers.Json
         public override void Save(Stream stream)
         {
             if (stream == null)
+            {
                 throw new ArgumentNullException("stream");
+            }
+
             stream.WriteByte((byte)'[');
             for (int i = 0; i < list.Count; i++)
             {
                 JsonValue v = list[i];
                 if (v != null)
+                {
                     v.Save(stream);
+                }
                 else
                 {
                     stream.WriteByte((byte)'n');

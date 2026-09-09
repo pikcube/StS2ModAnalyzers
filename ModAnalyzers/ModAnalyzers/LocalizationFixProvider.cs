@@ -11,6 +11,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
+using Microsoft.CodeAnalysis.Text;
 
 namespace ModAnalyzers;
 
@@ -30,13 +31,16 @@ public class LocalizationFixProvider : CodeFixProvider
         //Should be the same for all, as all diagnostics should share the same span.
         //Realistically should only apply to one file at a time.
         
-        foreach (var diagnostic in context.Diagnostics)
+        foreach (Diagnostic diagnostic in context.Diagnostics)
         {
-            var properties = diagnostic.Properties;
+            ImmutableDictionary<string, string?> properties = diagnostic.Properties;
 
-            foreach (var entry in properties)
+            foreach (KeyValuePair<string, string?> entry in properties)
             {
-                if (entry.Key == "LOCFILES") locFiles = entry.Value;
+                if (entry.Key == "LOCFILES")
+                {
+                    locFiles = entry.Value;
+                }
                 else
                 {
                     missingKeys.Add(entry.Key, entry.Value);
@@ -44,20 +48,33 @@ public class LocalizationFixProvider : CodeFixProvider
             }
         }
 
-        if (locFiles == null) return;
-        if (missingKeys.Count == 0) return;
-        
-        var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root == null) return;
-        
-        var diagnosticSpan = context.Diagnostics.First().Location.SourceSpan;
-        var declaration = root.FindToken(diagnosticSpan.Start).Parent;
+        if (locFiles == null)
+        {
+            return;
+        }
+
+        if (missingKeys.Count == 0)
+        {
+            return;
+        }
+
+        SyntaxNode? root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+        if (root == null)
+        {
+            return;
+        }
+
+        TextSpan diagnosticSpan = context.Diagnostics.First().Location.SourceSpan;
+        SyntaxNode? declaration = root.FindToken(diagnosticSpan.Start).Parent;
         while (declaration != null && declaration.Kind() is not SyntaxKind.ClassDeclaration)
         {
             declaration = declaration.Parent;
         }
-        if (declaration == null) return;
-        
+        if (declaration == null)
+        {
+            return;
+        }
+
         context.RegisterCodeFix(
             CodeAction.Create(
                 title: string.Format(Resources.STS001CodeFixTitle, locFiles),
@@ -73,23 +90,30 @@ public class LocalizationFixProvider : CodeFixProvider
     {
         StringBuilder commentBuilder = new();//"/*\n");
         
-        var first = true;
-        foreach (var entry in missingKeys.ToImmutableSortedDictionary())
+        bool first = true;
+        foreach (KeyValuePair<string, string?> entry in missingKeys.ToImmutableSortedDictionary())
         {
-            if (first) first = false;
-            else commentBuilder.AppendLine(",");
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                commentBuilder.AppendLine(",");
+            }
+
             commentBuilder.Append($"  \"{entry.Key}\": \"{entry.Value}\"");
         }
         commentBuilder.AppendLine();//.AppendLine("*/");
 
-        var editor = await DocumentEditor.CreateAsync(document, cancellationToken);
-        var comment = SyntaxFactory.Comment(commentBuilder.ToString());
+        DocumentEditor editor = await DocumentEditor.CreateAsync(document, cancellationToken);
+        SyntaxTrivia comment = SyntaxFactory.Comment(commentBuilder.ToString());
         
         editor.ReplaceNode(declaration, (node, generator) =>
         {
             if (node.HasLeadingTrivia)
             {
-                var trivia = node.GetLeadingTrivia().Add(comment);
+                SyntaxTriviaList trivia = node.GetLeadingTrivia().Add(comment);
                 return node.WithLeadingTrivia(trivia);
             }
             else

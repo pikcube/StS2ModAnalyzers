@@ -42,15 +42,29 @@ public class ModelRequiresPool : DiagnosticAnalyzer
 
     private void CheckForPool(SymbolAnalysisContext context)
     {
-        if (context.Symbol is not INamedTypeSymbol namedTypeSymbol) return;
-        if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic) return;
-        
-        foreach (var modelType in ModelAbstracts)
+        if (context.Symbol is not INamedTypeSymbol namedTypeSymbol)
         {
-            if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(modelType)) continue;
-            if (HasPoolAttribute(namedTypeSymbol)) return;
-            
-            var diagnostic = Diagnostic.Create(Rule,
+            return;
+        }
+
+        if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic)
+        {
+            return;
+        }
+
+        foreach (string modelType in ModelAbstracts)
+        {
+            if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(modelType))
+            {
+                continue;
+            }
+
+            if (HasPoolAttribute(namedTypeSymbol))
+            {
+                return;
+            }
+
+            Diagnostic diagnostic = Diagnostic.Create(Rule,
                 namedTypeSymbol.Locations[0],
                 namedTypeSymbol.FullName());
             context.ReportDiagnostic(diagnostic);
@@ -61,7 +75,7 @@ public class ModelRequiresPool : DiagnosticAnalyzer
 
     private static bool HasPoolAttribute(INamedTypeSymbol namedTypeSymbol)
     {
-        foreach (var attr in namedTypeSymbol.GetAttributes())
+        foreach (AttributeData attr in namedTypeSymbol.GetAttributes())
         {
             if ("PoolAttribute".Equals(attr.AttributeClass?.Name))
             {

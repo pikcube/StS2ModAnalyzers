@@ -12,21 +12,27 @@ internal class JsonReader
 {
     public static object Read(string text)
     {
-        var reader = new JsonReader(text);
-        var v = reader.ReadCore();
+        JsonReader reader = new JsonReader(text);
+        object v = reader.ReadCore();
         reader.SkipSpaces();
         if (reader.ReadChar() >= 0)
+        {
             throw JsonError("extra characters in JSON input", reader.line, reader.column);
+        }
+
         return v;
     }
     
     public static object Read(TextReader text)
     {
-        var reader = new JsonReader(new TextReaderCharEnumerator(text));
-        var v = reader.ReadCore();
+        JsonReader reader = new JsonReader(new TextReaderCharEnumerator(text));
+        object v = reader.ReadCore();
         reader.SkipSpaces();
         if (reader.ReadChar() >= 0)
+        {
             throw JsonError("extra characters in JSON input", reader.line, reader.column);
+        }
+
         return v;
     }
 
@@ -34,8 +40,8 @@ internal class JsonReader
     {
         try
         {
-            var reader = new JsonReader(text);
-            var v = reader.ReadCore();
+            JsonReader reader = new JsonReader(text);
+            object v = reader.ReadCore();
             return v;
         }
         catch (ArgumentException)
@@ -49,7 +55,7 @@ internal class JsonReader
     {
         public bool MoveNext()
         {
-            var next = text.Read();
+            int next = text.Read();
             if (next >= 0)
             {
                 Current = (char) next;
@@ -96,12 +102,15 @@ internal class JsonReader
         SkipSpaces();
         int c = PeekChar();
         if (c < 0)
+        {
             throw JsonError("Incomplete JSON input", line, column);
+        }
+
         switch (c)
         {
             case '[':
                 ReadChar();
-                var list = new List<object>();
+                List<object> list = new List<object>();
                 SkipSpaces();
                 if (PeekChar() == ']')
                 {
@@ -115,17 +124,23 @@ internal class JsonReader
                     SkipSpaces();
                     c = PeekChar();
                     if (c != ',')
+                    {
                         break;
+                    }
+
                     ReadChar();
                     continue;
                 }
 
                 if (ReadChar() != ']')
+                {
                     throw JsonError("JSON array must end with ']'", line, column);
+                }
+
                 return list.ToArray();
             case '{':
                 ReadChar();
-                var obj = new Dictionary<string, object>();
+                Dictionary<string, object> obj = new Dictionary<string, object>();
                 SkipSpaces();
                 if (PeekChar() == '}')
                 {
@@ -150,9 +165,14 @@ internal class JsonReader
                     SkipSpaces();
                     c = ReadChar();
                     if (c == ',')
+                    {
                         continue;
+                    }
+
                     if (c == '}')
+                    {
                         break;
+                    }
                 }
 
                 return obj.ToArray();
@@ -170,9 +190,13 @@ internal class JsonReader
                 return ReadStringLiteral();
             default:
                 if ('0' <= c && c <= '9' || c == '-')
+                {
                     return ReadNumericLiteral();
+                }
                 else
+                {
                     throw JsonError(String.Format("Unexpected character '{0}'", (char)c), line, column);
+                }
         }
     }
 
@@ -213,7 +237,10 @@ internal class JsonReader
         }
 
         if (v == '\n')
+        {
             prev_lf = true;
+        }
+
         column++;
 
         return v;
@@ -240,7 +267,7 @@ internal class JsonReader
     // It could return either int, long or decimal, depending on the parsed value.
     object ReadNumericLiteral()
     {
-        var sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
 
         if (PeekChar() == '-')
         {
@@ -254,14 +281,21 @@ internal class JsonReader
         {
             c = PeekChar();
             if (c < '0' || '9' < c)
+            {
                 break;
+            }
+
             sb.Append((char)ReadChar());
             if (zeroStart && x == 1)
+            {
                 throw JsonError("leading zeros are not allowed", line, column);
+            }
         }
 
         if (x == 0) // Reached e.g. for "- "
+        {
             throw JsonError("Invalid JSON numeric literal; no digit found", line, column);
+        }
 
         // fraction
         bool hasFrac = false;
@@ -271,18 +305,26 @@ internal class JsonReader
             hasFrac = true;
             sb.Append((char)ReadChar());
             if (PeekChar() < 0)
+            {
                 throw JsonError("Invalid JSON numeric literal; extra dot", line, column);
+            }
+
             while (true)
             {
                 c = PeekChar();
                 if (c < '0' || '9' < c)
+                {
                     break;
+                }
+
                 sb.Append((char)ReadChar());
                 fdigits++;
             }
 
             if (fdigits == 0)
+            {
                 throw JsonError("Invalid JSON numeric literal; extra dot", line, column);
+            }
         }
 
         c = PeekChar();
@@ -292,28 +334,38 @@ internal class JsonReader
             {
                 int valueInt;
                 if (int.TryParse(sb.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out valueInt))
+                {
                     return valueInt;
+                }
 
                 long valueLong;
                 if (long.TryParse(sb.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out valueLong))
+                {
                     return valueLong;
+                }
 
                 ulong valueUlong;
                 if (ulong.TryParse(sb.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out valueUlong))
+                {
                     return valueUlong;
+                }
             }
 
             decimal valueDecimal;
             if (decimal.TryParse(sb.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out valueDecimal) &&
                 valueDecimal != 0)
+            {
                 return valueDecimal;
+            }
         }
         else
         {
             // exponent
             sb.Append((char)ReadChar());
             if (PeekChar() < 0)
+            {
                 throw JsonError("Invalid JSON numeric literal; incomplete exponent", line, column);
+            }
 
             c = PeekChar();
             if (c == '-')
@@ -321,15 +373,23 @@ internal class JsonReader
                 sb.Append((char)ReadChar());
             }
             else if (c == '+')
+            {
                 sb.Append((char)ReadChar());
+            }
 
             if (PeekChar() < 0)
+            {
                 throw JsonError("Invalid JSON numeric literal; incomplete exponent", line, column);
+            }
+
             while (true)
             {
                 c = PeekChar();
                 if (c < '0' || '9' < c)
+                {
                     break;
+                }
+
                 sb.Append((char)ReadChar());
             }
         }
@@ -342,7 +402,9 @@ internal class JsonReader
     string ReadStringLiteral()
     {
         if (PeekChar() != '"')
+        {
             throw JsonError("Invalid JSON string literal format", line, column);
+        }
 
         ReadChar();
         vb.Length = 0;
@@ -350,9 +412,14 @@ internal class JsonReader
         {
             int c = ReadChar();
             if (c < 0)
+            {
                 throw JsonError("JSON string is not closed", line, column);
+            }
+
             if (c == '"')
+            {
                 return vb.ToString();
+            }
             else if (c != '\\')
             {
                 vb.Append((char)c);
@@ -362,7 +429,10 @@ internal class JsonReader
             // escaped expression
             c = ReadChar();
             if (c < 0)
+            {
                 throw JsonError("Invalid JSON string literal; incomplete escape sequence", line, column);
+            }
+
             switch (c)
             {
                 case '"':
@@ -391,13 +461,24 @@ internal class JsonReader
                     {
                         cp <<= 4;
                         if ((c = ReadChar()) < 0)
+                        {
                             throw JsonError("Incomplete unicode character escape literal", line, column);
+                        }
+
                         if ('0' <= c && c <= '9')
+                        {
                             cp += (ushort)(c - '0');
+                        }
+
                         if ('A' <= c && c <= 'F')
+                        {
                             cp += (ushort)(c - 'A' + 10);
+                        }
+
                         if ('a' <= c && c <= 'f')
+                        {
                             cp += (ushort)(c - 'a' + 10);
+                        }
                     }
 
                     vb.Append((char)cp);
@@ -412,14 +493,20 @@ internal class JsonReader
     {
         int c;
         if ((c = ReadChar()) != expected)
+        {
             throw JsonError(String.Format("Expected '{0}', got '{1}'", expected, (char)c), line, column);
+        }
     }
 
     void Expect(string expected)
     {
         for (int i = 0; i < expected.Length; i++)
+        {
             if (ReadChar() != expected[i])
+            {
                 throw JsonError(String.Format("Expected '{0}', differed at {1}", expected, i), line, column);
+            }
+        }
     }
 
     static Exception JsonError(string msg, int line, int column)

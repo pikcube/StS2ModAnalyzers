@@ -4,6 +4,8 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,7 +13,6 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using ModAnalyzers.Json;
 
 namespace ModAnalyzers;
-
 
 //TODO - check localizations by language (separate keys into a map by language, report all languages missing keys)
 //Probably keys map to a list of languages, and then compare that to list of all languages that exist
@@ -186,7 +187,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning, isEnabledByDefault: true, description: CustomModelDescription);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Rule, NoLoc, CustomModelRule, LoggingDiagnostic.Fake);
+        [Rule, NoLoc, CustomModelRule, LoggingDiagnostic.Fake];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -200,41 +201,85 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private void LoadLocOnce(CompilationStartAnalysisContext context)
     {
-        var additionalFiles = context.Options.AdditionalFiles;
+        ImmutableArray<AdditionalText> additionalFiles = context.Options.AdditionalFiles;
+        AdditionalText? aliasFile = additionalFiles.SingleOrDefault(file => file.Path.EndsWith("locAliases.json"));
+
+        Dictionary<string, string> aliases = [];
+
+        if (aliasFile is not null)
+        {
+            string jsonString = aliasFile.GetText()?.ToString() ?? "";
+            List<LocAliasInfo> aliasInfo = JsonSerializer.Deserialize<List<LocAliasInfo>>(jsonString) ?? [];
+            foreach (LocAliasInfo info in aliasInfo)
+            {
+                foreach (string alias in info.AliasPaths)
+                {
+                    aliases.Add(alias, info.BasePath);
+                }
+            }
+        }
+
         _currentLocKeys = [];
         bool receivedJson = false;
         
-        foreach (var file in additionalFiles)
+        foreach (AdditionalText? file in additionalFiles)
         {
-            if (file == null) continue;
-            
-            var path = file.Path;
-            if (!path.EndsWith(".json")) continue;
-            if (!path.Contains("localization")) continue;
+            if (file == null || file == aliasFile)
+            {
+                continue;
+            }
+
+            string path = file.Path;
+            if (!path.EndsWith(".json"))
+            {
+                continue;
+            }
+
+            if (!path.Contains("localization"))
+            {
+                continue;
+            }
 
             receivedJson = true;
 
-            var jsonText = file.GetText()?.ToString();
-            if (jsonText == null) continue;
+            string? jsonText = file.GetText()?.ToString();
+            if (jsonText == null)
+            {
+                continue;
+            }
 
             try
             {
-                var fileKey = Path.GetFileNameWithoutExtension(path);
-                var loc = JsonValue.Parse(jsonText);
-                if (loc is not JsonObject locObj) continue;
-                foreach (var s in locObj.Keys)
+                string fileKey = Path.GetFileNameWithoutExtension(path);
+                JsonValue? loc = JsonValue.Parse(jsonText);
+                if (loc is not JsonObject locObj)
                 {
-                    _currentLocKeys.Add($"{fileKey}.{s}");
+                    continue;
+                }
+
+                foreach (string s in locObj.Keys)
+                {
+                    if (aliases.TryGetValue(fileKey, out string value))
+                    {
+                        _currentLocKeys.Add($"{value}.{s}");
+                    }
+                    else
+                    {
+                        _currentLocKeys.Add($"{fileKey}.{s}");
+                    }
                 }
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                // ignored
+            }
         }
 
-        var customModelInterface = 
+        INamedTypeSymbol? customModelInterface = 
             context.Compilation.GetTypeByMetadataName(CustomModelInterface);
-        var customLocInterface = 
+        INamedTypeSymbol? customLocInterface = 
             context.Compilation.GetTypeByMetadataName(ModelLocInterface);
-        var idAttribute =
+        INamedTypeSymbol? idAttribute =
             context.Compilation.GetTypeByMetadataName(CustomIdAttribute);
         
         context.RegisterSymbolAction(
@@ -243,30 +288,49 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         context.RegisterSymbolAction(CheckField, SymbolKind.Field);
         context.RegisterCompilationEndAction(endContext =>
         {
-            if (receivedJson) return;
-            var diagnostic = Diagnostic.Create(NoLoc, null);
+            if (receivedJson)
+            {
+                return;
+            }
+
+            Diagnostic diagnostic = Diagnostic.Create(NoLoc, null);
             endContext.ReportDiagnostic(diagnostic);
         });
     }
 
     private void CheckSymbol(SymbolAnalysisContext context, INamedTypeSymbol? customModel, INamedTypeSymbol? locProvider, INamedTypeSymbol? idAttribute)
     {
-        if (_currentLocKeys == null) return;
-        if (context.Symbol is not INamedTypeSymbol namedTypeSymbol) return;
-        if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic) return;
-        
+        if (_currentLocKeys == null)
+        {
+            return;
+        }
+
+        if (context.Symbol is not INamedTypeSymbol namedTypeSymbol)
+        {
+            return;
+        }
+
+        if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic)
+        {
+            return;
+        }
+
         Dictionary<string, string> missingKeys = [];
         
-        foreach (var entry in NamedTypeLocData)
+        foreach (KeyValuePair<string, RequiredLocalization[]> entry in NamedTypeLocData)
         {
-            if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(entry.Key)) continue;
-            var isCustomModel = namedTypeSymbol.ImplementsInterface(customModel);
+            if (!namedTypeSymbol.ImplementsInterfaceOrBaseClass(entry.Key))
+            {
+                continue;
+            }
+
+            bool isCustomModel = namedTypeSymbol.ImplementsInterface(customModel);
             
             //Check for localization provided through alternative means
             List<string> ignoreKeys = [];
-            if (OverrideIgnores.TryGetValue(entry.Key, out var overrideIgnores))
+            if (OverrideIgnores.TryGetValue(entry.Key, out KeyValuePair<string, string>[]? overrideIgnores))
             {
-                foreach (var overrideIgnore in overrideIgnores)
+                foreach (KeyValuePair<string, string> overrideIgnore in overrideIgnores)
                 {
                     if (namedTypeSymbol.OverridesMethodOrProperty(entry.Key, overrideIgnore.Key))
                     {
@@ -285,51 +349,64 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             
             if (!isCustomModel)
             {
-                var customModelName = entry.Key;
-                var index = customModelName.LastIndexOf('.');
+                string customModelName = entry.Key;
+                int index = customModelName.LastIndexOf('.');
                 customModelName = BaseLibAbstracts + customModelName.Substring(index + 1);
-                var modelTypeDiagnostic = Diagnostic.Create(CustomModelRule,
+                Diagnostic modelTypeDiagnostic = Diagnostic.Create(CustomModelRule,
                     namedTypeSymbol.Locations[0],
                     customModelName);
                 context.ReportDiagnostic(modelTypeDiagnostic);
             }
 
-            var customIdAttribute = namedTypeSymbol.GetAttributes()
+            AttributeData? customIdAttribute = namedTypeSymbol.GetAttributes()
                 .FirstOrDefault(attr => SymbolEqualityComparer.Default.Equals(idAttribute, attr.AttributeClass));
             
-            var fullName = namedTypeSymbol.FullName();
-            var prefix = fullName.GetPrefix();
-            var id = customIdAttribute?.AttributeArgumentString(0) ?? (isCustomModel ? prefix : "") + namedTypeSymbol.Name.Slugify();
+            string fullName = namedTypeSymbol.FullName();
+            string prefix = fullName.GetPrefix();
+            string id = customIdAttribute?.AttributeArgumentString(0) ?? (isCustomModel ? prefix : "") + namedTypeSymbol.Name.Slugify();
             
-            foreach (var requiredLoc in entry.Value)
+            foreach (RequiredLocalization requiredLoc in entry.Value)
             {
                 missingKeys.Clear();
                 
-                foreach (var locEntry in requiredLoc.RequiredKeys)
+                foreach (KeyValuePair<string, string> locEntry in requiredLoc.RequiredKeys)
                 {
-                    if (ignoreKeys.Contains(locEntry.Key)) continue;
-                    if (ignoreOnce != null && (ignoreOnce.Count == 0 || ignoreOnce.Contains(locEntry.Key))) continue;
-                    
-                    var key = ReplaceSpecial(locEntry.Key, id, namedTypeSymbol.Name);
-                    if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}")) continue;
+                    if (ignoreKeys.Contains(locEntry.Key))
+                    {
+                        continue;
+                    }
 
-                    var result = ReplaceSpecial(locEntry.Value, id, namedTypeSymbol.Name);
+                    if (ignoreOnce != null && (ignoreOnce.Count == 0 || ignoreOnce.Contains(locEntry.Key)))
+                    {
+                        continue;
+                    }
+
+                    string key = ReplaceSpecial(locEntry.Key, id, namedTypeSymbol.Name);
+                    if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}"))
+                    {
+                        continue;
+                    }
+
+                    string result = ReplaceSpecial(locEntry.Value, id, namedTypeSymbol.Name);
                     missingKeys.Add(key, result);
                 }
 
                 ignoreOnce = null;
 
-                if (missingKeys.Count == 0) continue;
+                if (missingKeys.Count == 0)
+                {
+                    continue;
+                }
 
-                var builder = ImmutableDictionary.CreateBuilder<string, string?>();
+                ImmutableDictionary<string, string?>.Builder builder = ImmutableDictionary.CreateBuilder<string, string?>();
                 //For future, list all necessary languages. eg "eng/cards.json, zhs/cards.json"
                 builder.Add("LOCFILES", requiredLoc.Filename + ".json");
-                foreach (var missingKey in missingKeys)
+                foreach (KeyValuePair<string, string> missingKey in missingKeys)
                 {
                     builder.Add(missingKey.Key, missingKey.Value);
                 }
                 
-                var diagnostic = Diagnostic.Create(Rule,
+                Diagnostic diagnostic = Diagnostic.Create(Rule,
                     namedTypeSymbol.Locations[0],
                     builder.ToImmutable(),
                     JoinKeys(missingKeys), fullName);
@@ -343,17 +420,26 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     {
         while (symbol != null)
         {
-            foreach (var member in symbol.GetMembers())
+            foreach (ISymbol member in symbol.GetMembers())
             {
                 if (member is not IPropertySymbol || !member.IsOverride ||
-                    !member.Name.Equals("Localization")) continue;
-                
-                var syntaxReferences = member.DeclaringSyntaxReferences;
-                if (syntaxReferences.Length == 0) return null;
+                    !member.Name.Equals("Localization"))
+                {
+                    continue;
+                }
 
-                var syntax = syntaxReferences[0].GetSyntax();
+                ImmutableArray<SyntaxReference> syntaxReferences = member.DeclaringSyntaxReferences;
+                if (syntaxReferences.Length == 0)
+                {
+                    return null;
+                }
+
+                SyntaxNode? syntax = syntaxReferences[0].GetSyntax();
                 syntax = syntax.FindPropertyGetter(context);
-                if (syntax == null) return null;
+                if (syntax == null)
+                {
+                    return null;
+                }
 
                 return GetLocalizationKeys(syntax, symbolId, context);
             }
@@ -374,19 +460,22 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     /// <returns></returns>
     private ISet<string>? GetLocalizationKeys(SyntaxNode syntax, string symbolId, SymbolAnalysisContext context)
     {
-        var nullReturn =
+        LiteralExpressionSyntax? nullReturn =
             syntax.FindChild<LiteralExpressionSyntax>(test => test.IsKind(SyntaxKind.NullLiteralExpression));
-        if (nullReturn != null) return null;
+        if (nullReturn != null)
+        {
+            return null;
+        }
 
         SyntaxNode? objectCreation = syntax.FindChild<ObjectCreationExpressionSyntax>();
 
         IEnumerable<SyntaxNode> collectionItems;
         if (objectCreation is ObjectCreationExpressionSyntax objectCreationSyntax)
         {
-            var typeName = objectCreationSyntax.CreationTypeName();
+            string typeName = objectCreationSyntax.CreationTypeName();
             context.Log(typeName, syntax.GetLocation());
             //Special localization types provided by BaseLib
-            if (CodeLocalizationData.TryGetValue(typeName, out var locNames))
+            if (CodeLocalizationData.TryGetValue(typeName, out string[]? locNames))
             {
                 return locNames.Select(name => $"{symbolId}.{name}").ToImmutableHashSet();
             }
@@ -399,20 +488,25 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         }
         else
         {
-            var collectionExpression = syntax.FindChild<CollectionExpressionSyntax>();
-            if (collectionExpression == null) return ImmutableHashSet<string>.Empty;
+            CollectionExpressionSyntax? collectionExpression = syntax.FindChild<CollectionExpressionSyntax>();
+            if (collectionExpression == null)
+            {
+                return ImmutableHashSet<string>.Empty;
+            }
 
             collectionItems = collectionExpression.ChildNodes().OfType<CollectionElementSyntax>()
                 .Select(element => element.FindChild<TupleExpressionSyntax>()).OfType<TupleExpressionSyntax>();
         }
 
         HashSet<string> results = [];
-        foreach (var item in collectionItems)
+        foreach (SyntaxNode item in collectionItems)
         {
-            var firstValue = item.FindChild<ArgumentSyntax>()
+            LiteralExpressionSyntax? firstValue = item.FindChild<ArgumentSyntax>()
                 ?.FindChild<LiteralExpressionSyntax>(test => test.IsKind(SyntaxKind.StringLiteralExpression));
             if (firstValue == null)
+            {
                 return ImmutableHashSet<string>.Empty;
+            }
 
             results.Add($"{symbolId}.{firstValue.Token.ValueText}");
         }
@@ -422,14 +516,24 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private void CheckField(SymbolAnalysisContext context)
     {
-        if (_currentLocKeys == null) return;
-        if (context.Symbol is not IFieldSymbol fieldSymbol) return;
-        if (!fieldSymbol.IsStatic || fieldSymbol.IsReadOnly) return;
-        
-        var attributes = fieldSymbol.GetAttributes();
+        if (_currentLocKeys == null)
+        {
+            return;
+        }
+
+        if (context.Symbol is not IFieldSymbol fieldSymbol)
+        {
+            return;
+        }
+
+        if (!fieldSymbol.IsStatic || fieldSymbol.IsReadOnly)
+        {
+            return;
+        }
+
+        ImmutableArray<AttributeData> attributes = fieldSymbol.GetAttributes();
         AttributeData? enumAttr = null;
-        AttributeData? keywordProperties = null;
-        foreach (var attr in attributes)
+        foreach (AttributeData attr in attributes)
         {
             if ("CustomEnumAttribute".Equals(attr.AttributeClass?.Name))
             {
@@ -437,55 +541,69 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             }
             else if ("KeywordPropertiesAttribute".Equals(attr.AttributeClass?.Name))
             {
-                keywordProperties = attr;
             }
         }
 
         if (enumAttr != null)
         {
-            var name = fieldSymbol.Name;
-            var containingType = fieldSymbol.ContainingType;
+            string name = fieldSymbol.Name;
+            INamedTypeSymbol? containingType = fieldSymbol.ContainingType;
             
-            if (containingType == null) return;
-            
+            if (containingType == null)
+            {
+                return;
+            }
+
             Dictionary<string, string> missingKeys = [];
             
-            foreach (var entry in EnumLocData)
+            foreach (KeyValuePair<string, RequiredLocalization[]> entry in EnumLocData)
             {
-                if (!fieldSymbol.Type.Name.Contains(entry.Key)) continue;
-                
+                if (!fieldSymbol.Type.Name.Contains(entry.Key))
+                {
+                    continue;
+                }
+
                 if (enumAttr.ConstructorArguments.Length > 0)
                 {
-                    var nameArg = enumAttr.ConstructorArguments[0].Value;
-                    if (nameArg != null) name = nameArg.ToString();
+                    object? nameArg = enumAttr.ConstructorArguments[0].Value;
+                    if (nameArg != null)
+                    {
+                        name = nameArg.ToString();
+                    }
                 }
-                var prefix = containingType.FullName().GetPrefix();
-                var id = prefix + name.ToUpperInvariant();
+                string prefix = containingType.FullName().GetPrefix();
+                string id = prefix + name.ToUpperInvariant();
         
-                foreach (var requiredLoc in entry.Value)
+                foreach (RequiredLocalization requiredLoc in entry.Value)
                 {
                     missingKeys.Clear();
             
-                    foreach (var locEntry in requiredLoc.RequiredKeys)
+                    foreach (KeyValuePair<string, string> locEntry in requiredLoc.RequiredKeys)
                     {
-                        var key = ReplaceSpecial(locEntry.Key, id, name);
-                        if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}")) continue;
+                        string key = ReplaceSpecial(locEntry.Key, id, name);
+                        if (_currentLocKeys.Contains($"{requiredLoc.Filename}.{key}"))
+                        {
+                            continue;
+                        }
 
-                        var result = ReplaceSpecial(locEntry.Value, id, name);
+                        string result = ReplaceSpecial(locEntry.Value, id, name);
                         missingKeys.Add(key, result);
                     }
 
-                    if (missingKeys.Count == 0) continue;
+                    if (missingKeys.Count == 0)
+                    {
+                        continue;
+                    }
 
-                    var builder = ImmutableDictionary.CreateBuilder<string, string?>();
+                    ImmutableDictionary<string, string?>.Builder builder = ImmutableDictionary.CreateBuilder<string, string?>();
                     //For future, list all necessary languages. eg "eng/cards.json, zhs/cards.json"
                     builder.Add("LOCFILES", requiredLoc.Filename + ".json");
-                    foreach (var missingKey in missingKeys)
+                    foreach (KeyValuePair<string, string> missingKey in missingKeys)
                     {
                         builder.Add(missingKey.Key, missingKey.Value);
                     }
             
-                    var diagnostic = Diagnostic.Create(Rule,
+                    Diagnostic diagnostic = Diagnostic.Create(Rule,
                         fieldSymbol.Locations[0],
                         builder.ToImmutable(),
                         JoinKeys(missingKeys), name);
@@ -506,10 +624,16 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     {
         StringBuilder sb = new();
         bool first = true;
-        foreach (var entry in dict)
+        foreach (KeyValuePair<T, U> entry in dict)
         {
-            if (first) first = false;
-            else sb.Append(", ");
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                sb.Append(", ");
+            }
 
             sb.Append(entry.Key);
         }

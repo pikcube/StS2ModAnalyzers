@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Models;
 
 namespace ModAnalyzers.Sample;
 
-public class Guy : CharacterModel, ICustomModel
+public abstract class Guy : CharacterModel, ICustomModel
 {
     public override List<string> GetArchitectAttackVfx()
     {

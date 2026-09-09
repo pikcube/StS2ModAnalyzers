@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -11,11 +12,15 @@ internal static class Extensions
 {
     public static string FullName(this INamedTypeSymbol symbol)
     {
-        var format =
+        SymbolDisplayFormat format =
             SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle
                 .Omitted);
         string fullName = symbol.ContainingNamespace?.ToDisplayString(format) ?? string.Empty;
-        if (fullName.Length > 0) fullName += ".";
+        if (fullName.Length > 0)
+        {
+            fullName += ".";
+        }
+
         return fullName + symbol.Name;
     }
     
@@ -36,7 +41,7 @@ internal static class Extensions
             return true;
         }
         
-        foreach (var @interface in typeSymbol.AllInterfaces)
+        foreach (INamedTypeSymbol @interface in typeSymbol.AllInterfaces)
         {
             if (@interface.FullName() == name)
             {
@@ -44,10 +49,14 @@ internal static class Extensions
             }
         }
 
-        var baseType = typeSymbol.BaseType;
+        INamedTypeSymbol? baseType = typeSymbol.BaseType;
         while (baseType != null)
         {
-            if (baseType.FullName() == name) return true;
+            if (baseType.FullName() == name)
+            {
+                return true;
+            }
+
             baseType = baseType.BaseType;
         }
 
@@ -63,20 +72,26 @@ internal static class Extensions
     /// <returns></returns>
     public static bool OverridesMethodOrProperty(this INamedTypeSymbol typeSymbol, string baseTypeName, string baseName)
     {
-        if (typeSymbol.FullName() == baseTypeName) return false;
-        
-        foreach (var symbol in typeSymbol.GetMembers())
+        if (typeSymbol.FullName() == baseTypeName)
         {
-            if (symbol.IsOverride && symbol.Name == baseName) return true;
+            return false;
+        }
+
+        foreach (ISymbol symbol in typeSymbol.GetMembers())
+        {
+            if (symbol.IsOverride && symbol.Name == baseName)
+            {
+                return true;
+            }
         }
         
-        var baseType = typeSymbol.BaseType;
+        INamedTypeSymbol? baseType = typeSymbol.BaseType;
         return baseType != null && baseType.OverridesMethodOrProperty(baseTypeName, baseName);
     }
 
     public static string? AttributeArgumentString(this AttributeData attr, int argIndex)
     {
-        var args = attr.ConstructorArguments;
+        ImmutableArray<TypedConstant> args = attr.ConstructorArguments;
         return argIndex >= args.Length ? null : args[argIndex].Value?.ToString();
     }
 
@@ -93,7 +108,10 @@ internal static class Extensions
         if (valueDefinition == null)
         {
             //No arrow expression, check for block syntax
-            if (propertyGetter == null) return null;
+            if (propertyGetter == null)
+            {
+                return null;
+            }
 
             valueDefinition = propertyGetter.FindChild<BlockSyntax>()?.FindChild<ReturnStatementSyntax>();
         }
@@ -104,9 +122,12 @@ internal static class Extensions
 
     public static string CreationTypeName(this ExpressionSyntax expression)
     {
-        if (!expression.IsKind(SyntaxKind.ObjectCreationExpression)) return "WRONG EXPRESSION KIND";
+        if (!expression.IsKind(SyntaxKind.ObjectCreationExpression))
+        {
+            return "WRONG EXPRESSION KIND";
+        }
 
-        var nameSyntax = expression.FindChild<QualifiedNameSyntax>() ?? expression;
+        ExpressionSyntax? nameSyntax = expression.FindChild<QualifiedNameSyntax>() ?? expression;
         nameSyntax = nameSyntax.FindChild<IdentifierNameSyntax>();
 
         return nameSyntax is not IdentifierNameSyntax name ? "" : name.GetFirstToken().ValueText;
@@ -114,9 +135,12 @@ internal static class Extensions
 
     public static T? FindChild<T>(this SyntaxNode syntax, Predicate<T>? condition = null) where T : SyntaxNode
     {
-        foreach (var child in syntax.ChildNodes())
+        foreach (SyntaxNode child in syntax.ChildNodes())
         {
-            if (child is T correctChild && condition?.Invoke(correctChild) != false) return correctChild;
+            if (child is T correctChild && condition?.Invoke(correctChild) != false)
+            {
+                return correctChild;
+            }
         }
 
         return null;
@@ -154,7 +178,7 @@ internal static class Extensions
     
     public static string GetRootNamespace(this string fullName)
     {
-        var pos = fullName.IndexOf('.');
+        int pos = fullName.IndexOf('.');
         return pos < 0 ? "" : fullName.Substring(0, pos);
     }
 }

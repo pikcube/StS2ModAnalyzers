@@ -16,9 +16,8 @@
     </PropertyGroup>
     
     <ItemGroup>
-        <ProjectReference Include="..\ModAnalyzers\ModAnalyzers.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
-        <AdditionalFiles Include="localization/*.json"/>
+        <ProjectReference Include="..\ModAnalyzers\ModAnalyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <AdditionalFiles Include="localization/*.json" />
         
         
         <Reference Include="sts2">
@@ -28,6 +27,6 @@
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="Alchyr.Sts2.BaseLib" Version="0.2.2" />
+      <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.5" />
     </ItemGroup>
 </Project>

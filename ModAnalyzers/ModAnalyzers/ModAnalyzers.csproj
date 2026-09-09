@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <AssemblyName>Sts2ModAnalyzers</AssemblyName>
@@ -15,9 +15,9 @@
         <IsPackable>true</IsPackable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>Alchyr.Sts2.ModAnalyzers</PackageId>
-        <PackageVersion>0.1.9</PackageVersion>
-        <Authors>Alchyr</Authors>
-        <Description>Analyzers to help with the creation of Slay the Spire 2 mods.</Description>
+        <PackageVersion>0.2.9</PackageVersion>
+        <Authors>Pikcube and Alchyr</Authors>
+        <Description>Fork of analyzers created by Alchyr for Dice the Spire.</Description>
         <PackageReleaseNotes>FirstOrDefault instead of First to avoid exception if no attributes. Use AllInterfaces instead of Interfaces.</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         
@@ -40,16 +40,17 @@
     <!-- Locate the analyzer DLL in the correct package directory -->
     <ItemGroup>
         <None Update="tools\*.ps1" CopyToOutputDirectory="Always" Pack="true" PackagePath="tools" />
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
     
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+        <PackageReference Include="System.Text.Json" Version="10.0.12" />
     </ItemGroup>
 
     <ItemGroup>
@@ -69,7 +70,6 @@
 
     <ItemGroup>
       <AdditionalFiles Remove="AnalyzerReleases.Unshipped.md" />
-      <AdditionalFiles Remove="AnalyzerReleases.Shipped.md" />
     </ItemGroup>
 
 </Project>

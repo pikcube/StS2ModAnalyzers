@@ -1,8 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.10.12201.205 stable
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModAnalyzers", "ModAnalyzers\ModAnalyzers\ModAnalyzers.csproj", "{453D4451-6830-4C57-A4AE-73EB82E8547F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModAnalyzers.Sample", "ModAnalyzers\ModAnalyzers.Sample\ModAnalyzers.Sample.csproj", "{D0B8DD29-9518-4A93-8201-BB015AB6BC06}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{85218E95-6CF0-47F7-9D3A-93DE4659BFC4}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,9 +20,11 @@ Global
 		{453D4451-6830-4C57-A4AE-73EB82E8547F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{453D4451-6830-4C57-A4AE-73EB82E8547F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{453D4451-6830-4C57-A4AE-73EB82E8547F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D0B8DD29-9518-4A93-8201-BB015AB6BC06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D0B8DD29-9518-4A93-8201-BB015AB6BC06}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D0B8DD29-9518-4A93-8201-BB015AB6BC06}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D0B8DD29-9518-4A93-8201-BB015AB6BC06}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {49E1B81A-0279-46DE-8A79-767ADECB5326}
 	EndGlobalSection
 EndGlobal

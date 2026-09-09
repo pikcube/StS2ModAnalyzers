@@ -14,17 +14,25 @@ namespace ModAnalyzers.Json
         public static JsonValue? Load(Stream stream)
         {
             if (stream == null)
+            {
                 throw new ArgumentNullException(nameof(stream));
+            }
+
             return Load(new StreamReader(stream, true));
         }
 
         public static JsonValue? Load(TextReader textReader)
         {
             if (textReader == null)
+            {
                 throw new ArgumentNullException(nameof(textReader));
+            }
 
-            var ret = JsonReader.Read(textReader);
-            if (ret == null) return null;
+            object? ret = JsonReader.Read(textReader);
+            if (ret == null)
+            {
+                return null;
+            }
 
             return ToJsonValue(ret);
         }
@@ -32,70 +40,139 @@ namespace ModAnalyzers.Json
         static IEnumerable<KeyValuePair<string, JsonValue>> ToJsonPairEnumerable(
             IEnumerable<KeyValuePair<string, object>> kvpc)
         {
-            foreach (var kvp in kvpc)
+            foreach (KeyValuePair<string, object> kvp in kvpc)
+            {
                 yield return new KeyValuePair<string, JsonValue>(kvp.Key, ToJsonValue(kvp.Value));
+            }
         }
 
         static IEnumerable<JsonValue> ToJsonValueEnumerable(IEnumerable<object> arr)
         {
-            foreach (var obj in arr)
+            foreach (object obj in arr)
+            {
                 yield return ToJsonValue(obj);
+            }
         }
 
         static JsonValue ToJsonValue(object ret)
         {
-            var kvpc = ret as IEnumerable<KeyValuePair<string, object>>;
+            IEnumerable<KeyValuePair<string, object>>? kvpc = ret as IEnumerable<KeyValuePair<string, object>>;
             if (kvpc != null)
+            {
                 return new JsonObject(ToJsonPairEnumerable(kvpc));
-            var arr = ret as IEnumerable<object>;
+            }
+
+            IEnumerable<object>? arr = ret as IEnumerable<object>;
             if (arr != null)
+            {
                 return new JsonArray(ToJsonValueEnumerable(arr));
+            }
 
             if (ret is bool)
+            {
                 return new JsonPrimitive((bool)ret);
+            }
+
             if (ret is byte)
+            {
                 return new JsonPrimitive((byte)ret);
+            }
+
             if (ret is char)
+            {
                 return new JsonPrimitive((char)ret);
+            }
+
             if (ret is decimal)
+            {
                 return new JsonPrimitive((decimal)ret);
+            }
+
             if (ret is double)
+            {
                 return new JsonPrimitive((double)ret);
+            }
+
             if (ret is float)
+            {
                 return new JsonPrimitive((float)ret);
+            }
+
             if (ret is int)
+            {
                 return new JsonPrimitive((int)ret);
+            }
+
             if (ret is long)
+            {
                 return new JsonPrimitive((long)ret);
+            }
+
             if (ret is sbyte)
+            {
                 return new JsonPrimitive((sbyte)ret);
+            }
+
             if (ret is short)
+            {
                 return new JsonPrimitive((short)ret);
+            }
+
             if (ret is string)
+            {
                 return new JsonPrimitive((string)ret);
+            }
+
             if (ret is uint)
+            {
                 return new JsonPrimitive((uint)ret);
+            }
+
             if (ret is ulong)
+            {
                 return new JsonPrimitive((ulong)ret);
+            }
+
             if (ret is ushort)
+            {
                 return new JsonPrimitive((ushort)ret);
+            }
+
             if (ret is DateTime)
+            {
                 return new JsonPrimitive((DateTime)ret);
+            }
+
             if (ret is DateTimeOffset)
+            {
                 return new JsonPrimitive((DateTimeOffset)ret);
+            }
+
             if (ret is Guid)
+            {
                 return new JsonPrimitive((Guid)ret);
+            }
+
             if (ret is TimeSpan)
+            {
                 return new JsonPrimitive((TimeSpan)ret);
+            }
+
             if (ret is Uri)
+            {
                 return new JsonPrimitive((Uri)ret);
+            }
+
             throw new NotSupportedException(String.Format("Unexpected parser return type: {0}", ret.GetType()));
         }
 
         public static JsonValue? Parse(string jsonString)
         {
             if (jsonString == null)
+            {
                 throw new ArgumentNullException("jsonString");
+            }
+
             return Load(new StringReader(jsonString));
         }
 
@@ -126,14 +203,20 @@ namespace ModAnalyzers.Json
         public virtual void Save(Stream stream)
         {
             if (stream == null)
+            {
                 throw new ArgumentNullException("stream");
+            }
+
             Save(new StreamWriter(stream));
         }
 
         public virtual void Save(TextWriter textWriter)
         {
             if (textWriter == null)
+            {
                 throw new ArgumentNullException("textWriter");
+            }
+
             SaveInternal(textWriter);
         }
 
@@ -147,14 +230,22 @@ namespace ModAnalyzers.Json
                     foreach (JsonPair pair in ((JsonObject)this))
                     {
                         if (following)
+                        {
                             w.Write(", ");
+                        }
+
                         w.Write('\"');
                         w.Write(EscapeString(pair.Key));
                         w.Write("\": ");
                         if (pair.Value == null)
+                        {
                             w.Write("null");
+                        }
                         else
+                        {
                             pair.Value.SaveInternal(w);
+                        }
+
                         following = true;
                     }
 
@@ -166,11 +257,19 @@ namespace ModAnalyzers.Json
                     foreach (JsonValue v in ((JsonArray)this))
                     {
                         if (following)
+                        {
                             w.Write(", ");
+                        }
+
                         if (v != null)
+                        {
                             v.SaveInternal(w);
+                        }
                         else
+                        {
                             w.Write("null");
+                        }
+
                         following = true;
                     }
 
@@ -230,13 +329,18 @@ namespace ModAnalyzers.Json
         internal string EscapeString(string src)
         {
             for (int i = 0; i < src.Length; i++)
+            {
                 if (NeedEscape(src, i))
                 {
-                    var sb = new StringBuilder();
+                    StringBuilder sb = new StringBuilder();
                     if (i > 0)
+                    {
                         sb.Append(src, 0, i);
+                    }
+
                     return DoEscapeString(sb, src, i);
                 }
+            }
 
             return src;
         }
@@ -245,6 +349,7 @@ namespace ModAnalyzers.Json
         {
             int start = cur;
             for (int i = cur; i < src.Length; i++)
+            {
                 if (NeedEscape(src, i))
                 {
                     sb.Append(src, start, i - start);
@@ -266,6 +371,7 @@ namespace ModAnalyzers.Json
 
                     start = i + 1;
                 }
+            }
 
             sb.Append(src, start, src.Length - start);
             return sb.ToString();
@@ -373,70 +479,100 @@ namespace ModAnalyzers.Json
         public static implicit operator bool(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToBoolean(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator byte(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToByte(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator char(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToChar(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator decimal(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToDecimal(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator double(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToDouble(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator float(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToSingle(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator int(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToInt32(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator long(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToInt64(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator sbyte(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToSByte(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator short(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToInt16(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
@@ -448,56 +584,80 @@ namespace ModAnalyzers.Json
         public static implicit operator uint(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToUInt32(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator ulong(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToUInt64(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator ushort(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return Convert.ToUInt16(((JsonPrimitive)value).Value, NumberFormatInfo.InvariantInfo);
         }
 
         public static implicit operator DateTime(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return (DateTime)((JsonPrimitive)value).Value;
         }
 
         public static implicit operator DateTimeOffset(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return (DateTimeOffset)((JsonPrimitive)value).Value;
         }
 
         public static implicit operator TimeSpan(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return (TimeSpan)((JsonPrimitive)value).Value;
         }
 
         public static implicit operator Guid(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return (Guid)((JsonPrimitive)value).Value;
         }
 
         public static implicit operator Uri(JsonValue value)
         {
             if (value == null)
+            {
                 throw new ArgumentNullException("value");
+            }
+
             return (Uri)((JsonPrimitive)value).Value;
         }
     }

@@ -115,7 +115,9 @@ namespace ModAnalyzers.Json
             {
                 // FIXME: what should we do for null? Handle it as null so far.
                 if (value == null)
+                {
                     return JsonType.String;
+                }
 
                 switch (Type.GetTypeCode(value.GetType()))
                 {
@@ -141,9 +143,14 @@ namespace ModAnalyzers.Json
             {
                 case JsonType.Boolean:
                     if ((bool)value)
+                    {
                         stream.Write(true_bytes, 0, 4);
+                    }
                     else
+                    {
                         stream.Write(false_bytes, 0, 5);
+                    }
+
                     break;
                 case JsonType.String:
                     stream.WriteByte((byte)'\"');
@@ -164,21 +171,37 @@ namespace ModAnalyzers.Json
             {
                 case JsonType.String:
                     if (value is string valueS)
+                    {
                         return valueS;
+                    }
+
                     if (value is char)
+                    {
                         return value.ToString();
+                    }
+
                     throw new NotImplementedException("GetFormattedString from value type " + value.GetType());
                 case JsonType.Number:
                     string s;
                     if (value is float || value is double)
+                    {
                         // Use "round-trip" format
                         s = ((IFormattable)value).ToString("R", NumberFormatInfo.InvariantInfo);
+                    }
                     else
+                    {
                         s = ((IFormattable)value).ToString("G", NumberFormatInfo.InvariantInfo);
+                    }
+
                     if (s == "NaN" || s == "Infinity" || s == "-Infinity")
+                    {
                         return "\"" + s + "\"";
+                    }
                     else
+                    {
                         return s;
+                    }
+
                 default:
                     throw new InvalidOperationException();
             }

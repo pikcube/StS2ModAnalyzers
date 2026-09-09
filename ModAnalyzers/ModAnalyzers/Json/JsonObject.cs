@@ -19,13 +19,17 @@ namespace ModAnalyzers.Json
             map = new SortedDictionary<string, JsonValue>(StringComparer.Ordinal);
 
             if (items != null)
+            {
                 AddRange(items);
+            }
         }
 
         public JsonObject(JsonPairEnumerable items)
         {
             if (items == null)
+            {
                 throw new ArgumentNullException("items");
+            }
 
             map = new SortedDictionary<string, JsonValue>(StringComparer.Ordinal);
             AddRange(items);
@@ -70,7 +74,9 @@ namespace ModAnalyzers.Json
         public void Add(string key, JsonValue value)
         {
             if (key == null)
+            {
                 throw new ArgumentNullException("key");
+            }
 
             map.Add(key, value);
         }
@@ -83,10 +89,14 @@ namespace ModAnalyzers.Json
         public void AddRange(JsonPairEnumerable items)
         {
             if (items == null)
+            {
                 throw new ArgumentNullException("items");
+            }
 
-            foreach (var pair in items)
+            foreach (JsonPair pair in items)
+            {
                 map.Add(pair.Key, pair.Value);
+            }
         }
 
         public void AddRange(params JsonPair[] items)
@@ -112,7 +122,9 @@ namespace ModAnalyzers.Json
         public override bool ContainsKey(string key)
         {
             if (key == null)
+            {
                 throw new ArgumentNullException("key");
+            }
 
             return map.ContainsKey(key);
         }
@@ -125,7 +137,9 @@ namespace ModAnalyzers.Json
         public bool Remove(string key)
         {
             if (key == null)
+            {
                 throw new ArgumentNullException("key");
+            }
 
             return map.Remove(key);
         }
@@ -138,7 +152,10 @@ namespace ModAnalyzers.Json
         public override void Save(Stream stream)
         {
             if (stream == null)
+            {
                 throw new ArgumentNullException("stream");
+            }
+
             stream.WriteByte((byte)'{');
             foreach (JsonPair pair in map)
             {
@@ -156,7 +173,9 @@ namespace ModAnalyzers.Json
                     stream.WriteByte((byte)'l');
                 }
                 else
+                {
                     pair.Value.Save(stream);
+                }
             }
 
             stream.WriteByte((byte)'}');
